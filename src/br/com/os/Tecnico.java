@@ -1,4 +1,4 @@
-package com.os;
+package br.com.os;
 
 public class Tecnico extends Pessoa {
     private String especialidade;
@@ -11,5 +11,10 @@ public class Tecnico extends Pessoa {
     @Override
     public void exibirInfo() {
         System.out.println("Técnico: " + nome + " | Especialidade: " + especialidade);
+    }
+
+    // O getter deve ficar dentro da classe
+    public String getNome() {
+        return nome;
     }
 }

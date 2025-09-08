@@ -1,4 +1,4 @@
-package com.os;
+package br.com.os;
 
 abstract class Pessoa {
     protected String nome;

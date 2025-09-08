@@ -1,4 +1,4 @@
-package com.os;
+package br.com.os;
 
 public class OrdemDeServico implements Fechavel {
     private int id;
@@ -19,7 +19,7 @@ public class OrdemDeServico implements Fechavel {
 
     public void exibirDetalhes() {
         System.out.println("OS #" + id + " | Assunto: " + assunto + " | Valor: R$" + valor);
-        System.out.println("Cliente: " + cliente.nome + " | Técnico: " + tecnico.nome + " | Status: " + status);
+        System.out.println("Cliente: " + cliente.getNome() + " | Técnico: " + tecnico.getNome() + " | Status: " + status);
         System.out.println("--------------------------------------------------");
     }
 
@@ -30,5 +30,10 @@ public class OrdemDeServico implements Fechavel {
         }
         status = "FECHADA";
         System.out.println("OS #" + id + " foi fechada com sucesso.");
+    }
+
+    // Método getStatus() precisa estar fora de fecharOS()
+    public String getStatus() {
+        return status;
     }
 }
