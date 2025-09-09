@@ -19,11 +19,12 @@ public class Main {
         int opcao = 0;
         int idOS = 1;
 
-        while (opcao != 3) {
-            System.out.println("=== Sistema de OS ===");
+        while (opcao != 4) {
+            System.out.println("\n=== Sistema de OS ===");
             System.out.println("1 - Abrir OS");
             System.out.println("2 - Listar OS abertas");
-            System.out.println("3 - Sair");
+            System.out.println("3 - Fechar uma OS");
+            System.out.println("4 - Sair");
             System.out.print("Escolha uma opção: ");
             opcao = sc.nextInt();
             sc.nextLine(); // limpar buffer
@@ -68,6 +69,30 @@ public class Main {
                     break;
 
                 case 3:
+                    System.out.print("Digite o ID da OS que deseja fechar: ");
+                    int idFechar = sc.nextInt();
+                    sc.nextLine();
+
+                    OrdemDeServico osParaFechar = null;
+                    for (OrdemDeServico o : listaOS) {
+                        if (o.getId() == idFechar) {
+                            osParaFechar = o;
+                            break;
+                        }
+                    }
+
+                    if (osParaFechar != null) {
+                        try {
+                            osParaFechar.fecharOS();
+                        } catch (OSJaFechadaException e) {
+                            System.out.println("Erro: " + e.getMessage());
+                        }
+                    } else {
+                        System.out.println("OS não encontrada!");
+                    }
+                    break;
+
+                case 4:
                     System.out.println("Saindo...");
                     break;
 
