@@ -8,8 +8,14 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableRowSorter;
 import java.awt.*;
 import java.awt.event.*;
+import java.io.File;
 import java.util.ArrayList;
 
+/**
+ * Classe principal da interface gráfica do Sistema de Ordem de Serviço (OS).
+ * Gerencia abas para OS ativas e chamadas inativas, com funcionalidades de criação,
+ * edição, busca e fechamento de OS.
+ */
 public class MainFrame extends JFrame {
     private JTabbedPane tabbedPane;
     private JPanel osAtivasPanel, chamadosInativosPanel;
@@ -19,15 +25,20 @@ public class MainFrame extends JFrame {
     private ArrayList<OS> osInativosList;
     private JTextField searchField;
 
+    // Constantes para colunas das tabelas
+    private static final String[] TABLE_COLUMNS = {"Número", "Cliente", "Serviço", "Preço", "Status"};
+
     public MainFrame() {
         setTitle("Sistema de OS - Empresa");
-        setSize(1000, 600);
+        setSize(1200, 700); // Aumentado para melhor visualização
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
 
+        // Inicialização das listas
         osList = new ArrayList<>();
         osInativosList = new ArrayList<>();
 
+        // Configuração do painel com abas
         tabbedPane = new JTabbedPane();
         osAtivasPanel = new JPanel(new BorderLayout());
         chamadosInativosPanel = new JPanel(new BorderLayout());
@@ -42,88 +53,148 @@ public class MainFrame extends JFrame {
         setVisible(true);
     }
 
+    /**
+     * Configura a aba de OS Ativas com tabela, busca e botão de criação.
+     */
     private void setupOSAtivasTab() {
+        // Painel superior com botão e campo de busca
         JPanel topPanel = new JPanel(new BorderLayout());
         JButton createOSButton = new JButton("Criar O.S.");
         searchField = new JTextField();
+        searchField.setToolTipText("Digite para buscar por qualquer campo");
         topPanel.add(createOSButton, BorderLayout.WEST);
         topPanel.add(searchField, BorderLayout.CENTER);
         osAtivasPanel.add(topPanel, BorderLayout.NORTH);
 
-        String[] columns = {"Número", "Cliente", "Serviço", "Preço", "Status"};
-        osAtivasModel = new DefaultTableModel(columns, 0);
+        // Configuração da tabela
+        osAtivasModel = new DefaultTableModel(TABLE_COLUMNS, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // Tabela não editável diretamente
+            }
+        };
         osAtivasTable = new JTable(osAtivasModel);
         TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(osAtivasModel);
         osAtivasTable.setRowSorter(sorter);
+        osAtivasTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         osAtivasPanel.add(new JScrollPane(osAtivasTable), BorderLayout.CENTER);
 
+        // Listener para busca em tempo real
         searchField.addKeyListener(new KeyAdapter() {
             @Override
             public void keyReleased(KeyEvent e) {
-                String text = searchField.getText();
-                if (text.trim().length() == 0) {
-                    sorter.setRowFilter(null);
-                } else {
-                    sorter.setRowFilter(RowFilter.regexFilter("(?i)" + text));
-                }
+                String text = searchField.getText().trim();
+                sorter.setRowFilter(text.isEmpty() ? null : RowFilter.regexFilter("(?i)" + text));
             }
         });
 
+        // Listener para criação de OS
         createOSButton.addActionListener(e -> {
             OS novaOS = criarOSDialog();
             if (novaOS != null) {
-                if (!novaOS.isAtiva()) {
-                    osInativosList.add(novaOS);
-                    chamadosInativosModel.addRow(new Object[]{novaOS.getNumero(), novaOS.getCliente().getNome(),
-                            novaOS.getDescricao(), novaOS.getPreco(), "Fechada"});
-                } else {
-                    osList.add(novaOS);
-                    osAtivasModel.addRow(new Object[]{novaOS.getNumero(), novaOS.getCliente().getNome(),
-                            novaOS.getDescricao(), novaOS.getPreco(), "Ativa"});
-                }
+                adicionarOS(novaOS);
             }
         });
 
+        // Listener para interações na tabela
         osAtivasTable.addMouseListener(new MouseAdapter() {
+            @Override
             public void mouseClicked(MouseEvent e) {
                 int row = osAtivasTable.getSelectedRow();
-                if (row >= 0) {
-                    int modelRow = osAtivasTable.convertRowIndexToModel(row);
-                    OS os = osList.get(modelRow);
+                if (row < 0) return;
+                int modelRow = osAtivasTable.convertRowIndexToModel(row);
+                OS os = osList.get(modelRow);
 
-                    // Clique duplo para fechar OS
-                    if (e.getClickCount() == 2) {
-                        int option = JOptionPane.showConfirmDialog(null,
-                                "Deseja fechar esta O.S.?", "Fechar OS",
-                                JOptionPane.YES_NO_OPTION);
-                        if (option == JOptionPane.YES_OPTION) {
-                            os.setAtiva(false);
-                            osList.remove(os);
-                            osAtivasModel.removeRow(modelRow);
-                            osInativosList.add(os);
-                            chamadosInativosModel.addRow(new Object[]{os.getNumero(), os.getCliente().getNome(),
-                                    os.getDescricao(), os.getPreco(), "Fechada"});
-                        }
-                    }
+                if (e.getClickCount() == 2) {
+                    // Clique duplo: fechar OS
+                    fecharOS(os, modelRow);
+                } else if (e.getClickCount() == 1 && osAtivasTable.columnAtPoint(e.getPoint()) == 1) {
+                    // Clique simples na coluna Cliente: editar cliente
+                    editarClienteDialog(os.getCliente());
+                    osAtivasModel.setValueAt(os.getCliente().getNome(), modelRow, 1);
+                }
+            }
+        });
+    }
 
-                    // Clique simples para editar cliente
-                    if (e.getClickCount() == 1 && osAtivasTable.columnAtPoint(e.getPoint()) == 1) {
-                        editarClienteDialog(os.getCliente());
-                        // Atualizar nome na tabela
-                        osAtivasModel.setValueAt(os.getCliente().getNome(), modelRow, 1);
+    /**
+     * Configura a aba de Chamados Inativos com tabela.
+     */
+    private void setupChamadosInativosTab() {
+        chamadosInativosModel = new DefaultTableModel(TABLE_COLUMNS, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+        chamadosInativosTable = new JTable(chamadosInativosModel);
+        chamadosInativosTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        chamadosInativosPanel.add(new JScrollPane(chamadosInativosTable), BorderLayout.CENTER);
+
+        // Listener para reabrir OS (duplo clique)
+        chamadosInativosTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    int row = chamadosInativosTable.getSelectedRow();
+                    if (row >= 0) {
+                        int modelRow = chamadosInativosTable.convertRowIndexToModel(row);
+                        OS os = osInativosList.get(modelRow);
+                        reabrirOS(os, modelRow);
                     }
                 }
             }
         });
     }
 
-    private void setupChamadosInativosTab() {
-        String[] columns = {"Número", "Cliente", "Serviço", "Preço", "Status"};
-        chamadosInativosModel = new DefaultTableModel(columns, 0);
-        chamadosInativosTable = new JTable(chamadosInativosModel);
-        chamadosInativosPanel.add(new JScrollPane(chamadosInativosTable), BorderLayout.CENTER);
+    /**
+     * Adiciona uma OS à lista apropriada e atualiza a tabela.
+     */
+    private void adicionarOS(OS os) {
+        if (os.isAtiva()) {
+            osList.add(os);
+            osAtivasModel.addRow(new Object[]{os.getNumero(), os.getCliente().getNome(),
+                    os.getDescricao(), os.getPreco(), "Ativa"});
+        } else {
+            osInativosList.add(os);
+            chamadosInativosModel.addRow(new Object[]{os.getNumero(), os.getCliente().getNome(),
+                    os.getDescricao(), os.getPreco(), "Fechada"});
+        }
     }
 
+    /**
+     * Fecha uma OS ativa e move para inativos.
+     */
+    private void fecharOS(OS os, int modelRow) {
+        int option = JOptionPane.showConfirmDialog(this,
+                "Deseja fechar esta O.S.?", "Fechar OS",
+                JOptionPane.YES_NO_OPTION);
+        if (option == JOptionPane.YES_OPTION) {
+            os.setAtiva(false);
+            osList.remove(os);
+            osAtivasModel.removeRow(modelRow);
+            adicionarOS(os);
+        }
+    }
+
+    /**
+     * Reabre uma OS inativa e move para ativas.
+     */
+    private void reabrirOS(OS os, int modelRow) {
+        int option = JOptionPane.showConfirmDialog(this,
+                "Deseja reabrir esta O.S.?", "Reabrir OS",
+                JOptionPane.YES_NO_OPTION);
+        if (option == JOptionPane.YES_OPTION) {
+            os.setAtiva(true);
+            osInativosList.remove(os);
+            chamadosInativosModel.removeRow(modelRow);
+            adicionarOS(os);
+        }
+    }
+
+    /**
+     * Diálogo para criar uma nova OS e cliente.
+     */
     private OS criarOSDialog() {
         JTextField nomeField = new JTextField();
         JTextField ruaField = new JTextField();
@@ -133,45 +204,69 @@ public class MainFrame extends JFrame {
         JTextField servicoField = new JTextField();
         JTextField precoField = new JTextField();
 
-        JLabel fotoLabel = new JLabel();
+        JLabel fotoLabel = new JLabel("Nenhuma foto selecionada");
         JButton escolherFotoButton = new JButton("Escolher Foto");
         final String[] fotoPath = {""};
 
         escolherFotoButton.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
-            int res = chooser.showOpenDialog(null);
+            chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+            int res = chooser.showOpenDialog(this);
             if (res == JFileChooser.APPROVE_OPTION) {
-                fotoPath[0] = chooser.getSelectedFile().getAbsolutePath();
+                File file = chooser.getSelectedFile();
+                fotoPath[0] = file.getAbsolutePath();
                 fotoLabel.setIcon(new ImageIcon(new ImageIcon(fotoPath[0]).getImage().getScaledInstance(100, 100, Image.SCALE_SMOOTH)));
+                fotoLabel.setText("");
             }
         });
 
         JCheckBox fechadaCheck = new JCheckBox("Marcar como fechada");
 
-        JPanel panel = new JPanel(new GridLayout(10, 2));
-        panel.add(new JLabel("Nome:")); panel.add(nomeField);
-        panel.add(new JLabel("Rua:")); panel.add(ruaField);
-        panel.add(new JLabel("Número:")); panel.add(numeroField);
-        panel.add(new JLabel("Bairro:")); panel.add(bairroField);
-        panel.add(new JLabel("CPF/CNPJ:")); panel.add(cpfCnpjField);
-        panel.add(new JLabel("Serviço:")); panel.add(servicoField);
-        panel.add(new JLabel("Preço:")); panel.add(precoField);
-        panel.add(fotoLabel); panel.add(escolherFotoButton);
-        panel.add(new JLabel("Status:")); panel.add(fechadaCheck);
+        // Melhor layout usando BoxLayout para alinhamento vertical
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.add(createLabeledField("Nome:", nomeField));
+        panel.add(createLabeledField("Rua:", ruaField));
+        panel.add(createLabeledField("Número:", numeroField));
+        panel.add(createLabeledField("Bairro:", bairroField));
+        panel.add(createLabeledField("CPF/CNPJ:", cpfCnpjField));
+        panel.add(createLabeledField("Serviço:", servicoField));
+        panel.add(createLabeledField("Preço:", precoField));
+        panel.add(createLabeledField("", fotoLabel));
+        panel.add(escolherFotoButton);
+        panel.add(fechadaCheck);
 
-        int result = JOptionPane.showConfirmDialog(null, panel, "Criar O.S. / Cliente",
+        int result = JOptionPane.showConfirmDialog(this, panel, "Criar O.S. / Cliente",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
         if (result == JOptionPane.OK_OPTION) {
-            Cliente cliente = new Cliente(nomeField.getText(), ruaField.getText(), numeroField.getText(),
-                    bairroField.getText(), cpfCnpjField.getText(), fotoPath[0]);
-            OS os = new OS(cliente, servicoField.getText(), Double.parseDouble(precoField.getText()),
-                    !fechadaCheck.isSelected());
-            return os;
+            try {
+                // Validações básicas
+                if (nomeField.getText().trim().isEmpty() || servicoField.getText().trim().isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Nome e Serviço são obrigatórios.", "Erro", JOptionPane.ERROR_MESSAGE);
+                    return null;
+                }
+                double preco = Double.parseDouble(precoField.getText().trim());
+                if (preco < 0) {
+                    JOptionPane.showMessageDialog(this, "Preço deve ser positivo.", "Erro", JOptionPane.ERROR_MESSAGE);
+                    return null;
+                }
+
+                Cliente cliente = new Cliente(nomeField.getText().trim(), ruaField.getText().trim(),
+                        numeroField.getText().trim(), bairroField.getText().trim(),
+                        cpfCnpjField.getText().trim(), fotoPath[0]);
+                OS os = new OS(cliente, servicoField.getText().trim(), preco, !fechadaCheck.isSelected());
+                return os;
+            } catch (NumberFormatException e) {
+                JOptionPane.showMessageDialog(this, "Preço deve ser um número válido.", "Erro", JOptionPane.ERROR_MESSAGE);
+            }
         }
         return null;
     }
 
+    /**
+     * Diálogo para editar um cliente.
+     */
     private void editarClienteDialog(Cliente cliente) {
         JTextField nomeField = new JTextField(cliente.getNome());
         JTextField ruaField = new JTextField(cliente.getRua());
@@ -179,37 +274,58 @@ public class MainFrame extends JFrame {
         JTextField bairroField = new JTextField(cliente.getBairro());
         JTextField cpfCnpjField = new JTextField(cliente.getCpfCnpj());
         JLabel fotoLabel = new JLabel();
-        fotoLabel.setIcon(new ImageIcon(new ImageIcon(cliente.getFotoPath()).getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH)));
+        if (!cliente.getFotoPath().isEmpty()) {
+            fotoLabel.setIcon(new ImageIcon(new ImageIcon(cliente.getFotoPath()).getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH)));
+        } else {
+            fotoLabel.setText("Nenhuma foto");
+        }
         JButton escolherFotoButton = new JButton("Escolher Foto");
         final String[] fotoPath = {cliente.getFotoPath()};
 
         escolherFotoButton.addActionListener(e -> {
             JFileChooser chooser = new JFileChooser();
-            int res = chooser.showOpenDialog(null);
+            int res = chooser.showOpenDialog(this);
             if (res == JFileChooser.APPROVE_OPTION) {
                 fotoPath[0] = chooser.getSelectedFile().getAbsolutePath();
                 fotoLabel.setIcon(new ImageIcon(new ImageIcon(fotoPath[0]).getImage().getScaledInstance(150, 150, Image.SCALE_SMOOTH)));
+                fotoLabel.setText("");
             }
         });
 
-        JPanel panel = new JPanel(new GridLayout(7, 2));
-        panel.add(new JLabel("Nome:")); panel.add(nomeField);
-        panel.add(new JLabel("Rua:")); panel.add(ruaField);
-        panel.add(new JLabel("Número:")); panel.add(numeroField);
-        panel.add(new JLabel("Bairro:")); panel.add(bairroField);
-        panel.add(new JLabel("CPF/CNPJ:")); panel.add(cpfCnpjField);
-        panel.add(fotoLabel); panel.add(escolherFotoButton);
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.add(createLabeledField("Nome:", nomeField));
+        panel.add(createLabeledField("Rua:", ruaField));
+        panel.add(createLabeledField("Número:", numeroField));
+        panel.add(createLabeledField("Bairro:", bairroField));
+        panel.add(createLabeledField("CPF/CNPJ:", cpfCnpjField));
+        panel.add(createLabeledField("", fotoLabel));
+        panel.add(escolherFotoButton);
 
-        int result = JOptionPane.showConfirmDialog(null, panel, "Editar Cliente",
+        int result = JOptionPane.showConfirmDialog(this, panel, "Editar Cliente",
                 JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
         if (result == JOptionPane.OK_OPTION) {
-            cliente.setNome(nomeField.getText());
-            cliente.setRua(ruaField.getText());
-            cliente.setNumero(numeroField.getText());
-            cliente.setBairro(bairroField.getText());
-            cliente.setCpfCnpj(cpfCnpjField.getText());
+            if (nomeField.getText().trim().isEmpty()) {
+                JOptionPane.showMessageDialog(this, "Nome é obrigatório.", "Erro", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            cliente.setNome(nomeField.getText().trim());
+            cliente.setRua(ruaField.getText().trim());
+            cliente.setNumero(numeroField.getText().trim());
+            cliente.setBairro(bairroField.getText().trim());
+            cliente.setCpfCnpj(cpfCnpjField.getText().trim());
             cliente.setFotoPath(fotoPath[0]);
         }
+    }
+
+    /**
+     * Cria um painel com label e campo para melhor organização.
+     */
+    private JPanel createLabeledField(String labelText, JComponent field) {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.add(new JLabel(labelText), BorderLayout.WEST);
+        panel.add(field, BorderLayout.CENTER);
+        return panel;
     }
 
     public static void main(String[] args) {
