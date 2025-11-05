@@ -1,0 +1,9 @@
+com\projeto0s\view\MainFrame.class
+com\projeto0s\view\ClientePanel.class
+com\projeto0s\view\MainFrame$1.class
+com\projeto0s\model\OS.class
+com\projeto0s\util\JsonUtils.class
+com\projeto0s\dao\OSDAO.class
+com\projeto0s\model\Cliente.class
+com\projeto0s\dao\ClienteDAO.class
+com\projeto0s\view\OSPanel.class
