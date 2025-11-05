@@ -1,10 +1,1 @@
-[
-  {
-    "id": 1,
-    "nome": "pedro"
-  },
-  {
-    "id": 2,
-    "nome": "joao"
-  }
-]
+[{"id":1,"nome":"pedro"},{"id":2,"nome":"joao"},{"id":3,"nome":"da","cpfCnpj":"adad","rua":"add","numero":"AD","bairro":"aD"}]

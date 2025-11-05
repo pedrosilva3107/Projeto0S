@@ -18,6 +18,7 @@ public class MainFrame extends JFrame {
     private OSAndamentoPanel andamentoPanel;
     private OSFinalizadasPanel finalizadasPanel;
 
+
     public MainFrame() {
         setTitle("Sistema de Ordem de Serviço");
         setSize(1000,700);
